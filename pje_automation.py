@@ -538,43 +538,49 @@ class PJEAutomation:
             # Verificar e renovar sessão se necessário
             if not self._renovar_sessao_se_necessario():
                 return None
-            
+
+            # O ID já vem codificado, não precisa codificar novamente
+            # Remover qualquer codificação dupla
+            id_limpo = id_audiencia.replace('%2C', ',')
+
             # URL para visualizar audiência
-            # Baseado no fetch fornecido: /midias/web/audiencia/visualizar?id=...
             url = f"{self.config.base_url}/midias/web/audiencia/visualizar"
-            params = {'id': id_audiencia}
-            
-            logger.info(f"Acessando detalhes da audiência: {url}?id={id_audiencia[:20]}...")
-            
+
+            logger.info(f"Acessando detalhes da audiência: {url}?id={id_limpo[:20]}...")
+
+            # Construir URL completa manualmente para evitar codificação dupla
+            full_url = f"{url}?id={id_limpo}"
+
             response = self.session.get(
-                url, 
-                params=params,
+                full_url,
                 timeout=self.config.timeout,
                 headers={
                     'Referer': f"{self.config.base_url}/midias/web/audiencia/index?num_processo={numero_processo}&tipo_pesquisa=1"
                 }
             )
-            
+
             # Verificar redirecionamento para login
             if '/login' in response.url:
                 if self._renovar_sessao_se_necessario():
-                    response = self.session.get(url, params=params, timeout=self.config.timeout)
+                    response = self.session.get(full_url, timeout=self.config.timeout)
                 else:
                     return None
-            
+
             response.raise_for_status()
-            
+
             # Debug: salvar HTML para análise
             debug_file = f"debug_audiencia_{numero_processo.replace('.', '_').replace('-', '_')}.html"
             with open(debug_file, 'w', encoding='utf-8') as f:
                 f.write(response.text)
             logger.debug(f"HTML da audiência salvo em: {debug_file}")
-            
+
             return BeautifulSoup(response.text, 'html.parser')
-            
+
         except Exception as e:
             logger.error(f"Erro ao acessar detalhes da audiência: {str(e)}")
             return None
+
+
     
     def gerar_chave_acesso(self, seq_audiencia: str) -> Optional[Dict]:
         """Gera chave de acesso externo para audiência"""
@@ -623,7 +629,7 @@ class PJEAutomation:
                 
                 if resultado.get('success'):
                     chave = resultado.get('chave')
-                    link_externo = f"https://midias.pje.jus.br/midias/web/externo?chave={chave}"
+                    link_externo = f"https://midias.pje.jus.br/midias/web/site/login/?chave={chave}"
                     
                     return {
                         'id': 'novo',
@@ -668,7 +674,7 @@ class PJEAutomation:
                                 
                                 if ativo.lower() == 'sim':
                                     # Construir URL do link
-                                    link_externo = f"https://midias.pje.jus.br/midias/web/externo?chave={chave}"
+                                    link_externo = f"https://midias.pje.jus.br/midias/web/site/login/?chave={chave}"
                                     
                                     link_info = {
                                         'id': tr.find('th').text.strip() if tr.find('th') else '',
@@ -748,11 +754,11 @@ class PJEAutomation:
     def processar_multiplos_processos(self, numeros_processos: List[str]) -> Dict[str, ProcessoInfo]:
         """Processa múltiplos processos"""
         resultados = {}
-        
+
         for i, numero_processo in enumerate(numeros_processos, 1):
             try:
                 logger.info(f"Processando {i}/{len(numeros_processos)}: {numero_processo}")
-                
+
                 # Acessar processo
                 soup = self.acessar_processo(numero_processo)
                 if not soup:
@@ -760,51 +766,54 @@ class PJEAutomation:
                 
                 # Criar objeto ProcessoInfo
                 processo_info = ProcessoInfo(numero=numero_processo)
-                
+
                 # Extrair informações de audiências
                 audiencias = self.extrair_informacoes_audiencia(soup, numero_processo)
-                
-                # Para cada audiência, extrair links
-                for audiencia in audiencias:
-                    id_audiencia = audiencia.get('id_audiencia', '')
-                    
-                    if id_audiencia:
-                        # Acessar detalhes da audiência usando o ID correto
-                        soup_detalhes = self.acessar_detalhes_audiencia(
-                            numero_processo, 
-                            id_audiencia
-                        )
-                        
-                        if soup_detalhes:
-                            links = self.extrair_links_midia(soup_detalhes, numero_processo)
-                            
-                            # Adicionar informações da audiência aos links
-                            for link in links:
-                                # Mesclar informações já extraídas do detalhes com as da lista
+
+                # Se houver audiências, acessar a página do processo diretamente
+                if audiencias:
+                    # URL direta do processo (como no link do HTML)
+                    url_processo = f"{self.config.base_url}/midias/web/{numero_processo}"
+
+                    logger.info(f"Acessando página do processo: {url_processo}")
+
+                    response = self.session.get(url_processo, timeout=self.config.timeout)
+
+                    if response.status_code == 200:
+                        soup_detalhes = BeautifulSoup(response.text, 'html.parser')
+                        links = self.extrair_links_midia(soup_detalhes, numero_processo)
+
+                        # Se temos múltiplas audiências mas só uma página de detalhes,
+                        # assumir que os links são para a primeira audiência (ou todas)
+                        for link in links:
+                            # Pegar informações da primeira audiência
+                            if audiencias:
+                                audiencia = audiencias[0]
                                 link.update({
                                     'data_audiencia': link.get('data_audiencia') or audiencia.get('data'),
                                     'tipo_audiencia': link.get('tipo_audiencia') or audiencia.get('tipo'),
                                     'juiz': link.get('juiz') or audiencia.get('juiz'),
                                     'status': audiencia.get('status')
                                 })
-                            
-                            processo_info.links_midia.extend(links)
+
+                        processo_info.links_midia.extend(links)
                     else:
-                        logger.warning(f"ID da audiência não encontrado para processo {numero_processo}")
-                
+                        logger.warning(f"Não foi possível acessar detalhes do processo: {response.status_code}")
+
                 # Adicionar ao resultado
                 resultados[numero_processo] = processo_info
                 self.processos_info[numero_processo] = processo_info
-                
+
                 # Delay entre requisições
                 time.sleep(self.config.delay_between_requests)
-                
+
             except Exception as e:
                 logger.error(f"Erro ao processar {numero_processo}: {str(e)}")
                 continue
-        
+            
         return resultados
-    
+
+
     def salvar_resultados(self, formato: str = 'json') -> str:
         """Salva resultados em arquivo"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
