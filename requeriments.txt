@@ -1,0 +1,25 @@
+# requirements.txt
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+lxml>=4.9.3
+python-dotenv>=1.0.0
+urllib3>=2.0.4
+
+# config.yaml (exemplo)
+pje:
+  base_url: "https://midias.pje.jus.br"
+  login_endpoint: "/midias/web/site/login"
+  audiencia_endpoint: "/midias/web/audiencia/index"
+  max_retries: 3
+  timeout: 30
+  delay_between_requests: 1.0
+  output_dir: "downloads"
+
+# .env (exemplo - não commitar com dados reais)
+PJE_CPF=21920907572
+PJE_SENHA=L16@28m18
+
+# processos.txt (exemplo)
+8001011-70.2025.8.05.0216
+1234567-89.2025.1.23.4567
+9876543-21.2025.9.87.6543

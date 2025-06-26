@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt_BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="/midias/web/images/apple-icon.png"  />
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
+    <meta name="csrf-param" content="_csrf">
+    <meta name="csrf-token" content="Kqqtd5FcDjX9i25624ko-1ET51Y9bSRwp6srU-f-66Nk4f4GoxtvQ5bJPhipzkGOMnuhEU86CRzGzmp-ppPZ4g==">
+    <title>PJe Mídias - Pesquisa por processo</title>
+    <link type="image/png" href="/midias/web/favicon.ico" rel="icon">
+<link href="/midias/web/assets/900487c7/css/bootstrap.css?v=1750120255" rel="stylesheet">
+<link href="/midias/web/lib/font-awesome-4.3.0/css/font-awesome.min.css?v=1733268764" rel="stylesheet">
+<link href="/midias/web/css/site.css?v=1733268764" rel="stylesheet">
+<link href="/midias/web/css/contraste.css?v=1733268764" rel="stylesheet">
+<link href="/midias/web/css/favorito.css?v=1733268764" rel="stylesheet">
+<link href="/midias/web/lib/bootstrap-datepicker/css/bootstrap-datepicker3.min.css?v=1733268764" rel="stylesheet">    <script src="https://sso.cloud.pje.jus.br/auth/js/keycloak.js"></script>
+    <script>
+        var keycloak = new Keycloak({
+                "realm": "pje",
+                "url": "https://sso.cloud.pje.jus.br/auth",
+                "clientId": "pje-midias",
+                "credentials": {
+                    "secret": "ae369d29-84e2-4ca2-ae15-74af3799bfc9"
+                },
+                "confidential-port": 0
+                });
+
+        function initKeycloak() {
+            keycloak.init();
+        }
+        function loginKeycloak() {
+                keycloak.init({ onLoad: 'check-sso',flow:"implicit",silentCheckSsoRedirectUri: app.getUrl() + '/../keycloak.html'}).then(function(authenticated) {
+                if(authenticated){
+                    var dataJson = {'token': keycloak.token};
+                    $.post(app.getUrl()+'/site/loginjwt', dataJson, function(data){
+                        if(data){
+                            window.location.reload();
+                        }
+                    });
+                }
+
+
+            }).catch(function() {
+                console.log('failed to initialize');
+            });
+        }
+
+        function logoutKeycloak(){
+            var logoutOptions = {redirectUri : app.getUrl() + '/site/logout'};
+
+            keycloak.logout(logoutOptions).then((success) => {
+                    console.log("--> log: logout success " , success );
+            }).catch((error) => {
+                    console.log("--> log: logout error " , error );
+            });
+        }
+    </script>
+
+</head>
+<body onload="initKeycloak()">
+    <div class="wrap">
+        <div class="acessibilidade">
+            <ul style="list-style: none;float: right;">
+                <li><a href="/midias/web/site/acessibilidade" class="menu-acessibilidade">Acessibilidade</a></li>
+                <li><a href="#" class="menu-contraste">Alto contraste</a></li>
+            </ul>
+        </div>
+        <nav id="w0" class="navbar-inverse navbar-fixed-top navbar"><div class="container-fluid"><div class="navbar-header"><button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#w0-collapse"><span class="sr-only">Toggle navigation</span>
+<span class="icon-bar"></span>
+<span class="icon-bar"></span>
+<span class="icon-bar"></span></button><a class="navbar-brand" href="/midias/web/"><i class="fa fa-bars btn-menu" class='menu-nav-bar' aria-hidden="true"></i>
+                                    <img src='/midias/web/images/pje2-branco.png' alt='PJe' /> <p>Mídias</p></a></div><div id="w0-collapse" class="collapse navbar-collapse"><ul id="w1" class="navbar-nav navbar-right nav"><li class="dropdown"><a class="dropdown-toggle" href="#" data-toggle="dropdown"><i class='fa fa-user' style='font-size: 20px;'></i> TEREZA GONÇALVES DE ABREU PORTO <span class="caret"></span></a><ul id="w2" class="dropdown-menu"><li><a href="/midias/web/audiencia/#" onclick="logoutKeycloak();return false;" tabindex="-1">Sair</a></li></ul></li></ul></div></div></nav>
+        <div class="col-md-2 column margintop20 nav-menu"
+">
+            <ul class="nav nav-pills nav-stacked">
+                <li class="active" style="
+    z-index: 300000;
+"><a href="#" style="
+    z-index: 30000;
+"><span class="glyphicon"></span> MENU</a></li>
+                <li><a href="/midias/web"><span class="glyphicon"></span>Início</a></li>
+                <li><a href="/midias/web/audiencia/meus-envios"><span class="glyphicon"></span>Meus Envios</a></li>
+                <li><a href="/midias/web/favorito"><span class="glyphicon"></span>Mídias favoritas</a></li>
+                <li><a href="/midias/web/site/ajuda"><span class="glyphicon"></span>Ajuda</a></li>
+                <li><a href="/midias/web/site/about"><span class="glyphicon"></span>Sobre o PJe Mídias</a></li>
+                <li><a href="/midias/web/controle-versao"><span class="glyphicon"></span>Download</a></li>
+            </ul>
+        </div>
+
+        <div class="container-fluid">
+                        <style>
+    label {
+        display: inline-block;
+        width: 160px;
+        text-align: right;
+    }
+</style>
+<div class="site-index" xmlns="http://www.w3.org/1999/html">
+    <div class="body-content">
+        <div class="row">
+            <div class="col-md-10 col-md-offset-1">
+                <form class='navbar-form form-inline' role='pesquisar processo' style='text-align: left' method="get"
+                      action='/midias/web/audiencia/index'>
+
+                    <label>Pesquisa por processo:</label>
+                    <div class="input-group">
+                        <div class="form-group" style=" margin-top:3px;">
+                            <div class="input-group">
+                                <input class='form-control' id='processo' value="80008222920248050216 "
+                                       name='num_processo' value='' style='width: 300px;'
+                                       placeholder='Número do processo' autocomplete='off' autofocus>
+
+                                <input type='hidden' id='tipo_pesquisa' name='tipo_pesquisa' value='1'/>
+                                <span class='input-group-btn'>
+						<button type='submit' class=" btn btn-default btn-procurar" style="min-height: 34px"><i
+                                    class='fa fa-search'></i></button>
+					</span>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="col-md-10 col-md-offset-1">
+                <form autocomplete="off" class='navbar-form form-inline' role='pesquisar sessao'
+                      style='text-align: left' method="get"
+                      action='/midias/web/audiencia/index'>
+                    <label style=" margin-top:3px;">Pesquisa por sessão:</label>
+                    <div class="input-group">
+                        <div class="form-group" style=" margin-top:3px;">
+                            <div id="datepicker-group1" class="input-group date" data-date-format="dd-mm-yyyy">
+                                <input class="form-control" type="text" id="dat_inicio" name="dat_inicio"
+                                       placeholder="Data início (opcional)"
+                                       onkeydown="return false" value="28/12/2024"/>
+                                <span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
+                            </div>
+                            <div id="datepicker-group2" class="input-group date" data-date-format="dd-mm-yyyy">
+                                <input class="form-control" type="text" id="dat_fim" name="dat_fim"
+                                       placeholder="Data fim (opcional)"
+                                       onkeydown="return false" value="26/06/2025"/>
+                                <span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-left:3px; margin-top:3px;">
+                            <select class="form-control" id="seq_tribunal" name="seq_tribunal"
+                                    placeholder="Selecione o tribunal">
+                                <option value="">Selecione o tribunal</option>
+                                                                    <option value="1" >
+                                        Conselho Nacional de Justiça</option>
+                                                                    <option value="2" >
+                                        Conselho da Justiça Federal</option>
+                                                                    <option value="3" >
+                                        Conselho Superior da Justiça do Trabalho</option>
+                                                                    <option value="4" >
+                                        Tribunal Superior do Trabalho</option>
+                                                                    <option value="5" >
+                                        Superior Tribunal Militar</option>
+                                                                    <option value="6" >
+                                        Supremo Tribunal Federal</option>
+                                                                    <option value="7" >
+                                        Superior Tribunal de Justiça</option>
+                                                                    <option value="8" >
+                                        Tribunal Superior Eleitoral</option>
+                                                                    <option value="9" >
+                                        Tribunal Regional Federal da 1ª Região</option>
+                                                                    <option value="10" >
+                                        Tribunal Regional Federal da 2ª Região</option>
+                                                                    <option value="11" >
+                                        Tribunal Regional Federal da 3ª Região</option>
+                                                                    <option value="12" >
+                                        Tribunal Regional Federal da 4ª Região</option>
+                                                                    <option value="13" >
+                                        Tribunal Regional Federal da 5ª Região</option>
+                                                                    <option value="14" >
+                                        Tribunal Regional do Trabalho da 1ª Região</option>
+                                                                    <option value="15" >
+                                        Tribunal Regional do Trabalho da 2ª Região</option>
+                                                                    <option value="16" >
+                                        Tribunal Regional do Trabalho da 3ª Região</option>
+                                                                    <option value="17" >
+                                        Tribunal Regional do Trabalho da 4ª Região</option>
+                                                                    <option value="18" >
+                                        Tribunal Regional do Trabalho da 5ª Região</option>
+                                                                    <option value="19" >
+                                        Tribunal Regional do Trabalho da 6ª Região</option>
+                                                                    <option value="20" >
+                                        Tribunal Regional do Trabalho da 7ª Região</option>
+                                                                    <option value="21" >
+                                        Tribunal Regional do Trabalho da 8ª Região</option>
+                                                                    <option value="22" >
+                                        Tribunal Regional do Trabalho da 9ª Região</option>
+                                                                    <option value="23" >
+                                        Tribunal Regional do Trabalho da 10ª Região</option>
+                                                                    <option value="24" >
+                                        Tribunal Regional do Trabalho da 11ª Região</option>
+                                                                    <option value="25" >
+                                        Tribunal Regional do Trabalho da 12ª Região</option>
+                                                                    <option value="26" >
+                                        Tribunal Regional do Trabalho da 13ª Região</option>
+                                                                    <option value="27" >
+                                        Tribunal Regional do Trabalho da 14ª Região</option>
+                                                                    <option value="28" >
+                                        Tribunal Regional do Trabalho da 15ª Região</option>
+                                                                    <option value="29" >
+                                        Tribunal Regional do Trabalho da 16ª Região</option>
+                                                                    <option value="30" >
+                                        Tribunal Regional do Trabalho da 17ª Região</option>
+                                                                    <option value="31" >
+                                        Tribunal Regional do Trabalho da 18ª Região</option>
+                                                                    <option value="32" >
+                                        Tribunal Regional do Trabalho da 19ª Região</option>
+                                                                    <option value="33" >
+                                        Tribunal Regional do Trabalho da 20ª Região</option>
+                                                                    <option value="34" >
+                                        Tribunal Regional do Trabalho da 21ª Região</option>
+                                                                    <option value="35" >
+                                        Tribunal Regional do Trabalho da 22ª Região</option>
+                                                                    <option value="36" >
+                                        Tribunal Regional do Trabalho da 23ª Região</option>
+                                                                    <option value="37" >
+                                        Tribunal Regional do Trabalho da 24ª Região</option>
+                                                                    <option value="38" >
+                                        Tribunal de Justiça do Estado do Acre</option>
+                                                                    <option value="39" >
+                                        Tribunal de Justiça do Estado de Alagoas</option>
+                                                                    <option value="40" >
+                                        Tribunal de Justiça do Estado do Amazonas</option>
+                                                                    <option value="41" >
+                                        Tribunal de Justiça do Estado do Amapá</option>
+                                                                    <option value="42" >
+                                        Tribunal de Justiça do Estado da Bahia</option>
+                                                                    <option value="43" >
+                                        Tribunal de Justiça do Estado do Ceará</option>
+                                                                    <option value="44" >
+                                        Tribunal de Justiça do Distrito Federal e dos Territórios</option>
+                                                                    <option value="45" >
+                                        Tribunal de Justiça do Estado do Espírito Santo</option>
+                                                                    <option value="46" >
+                                        Tribunal de Justiça do Estado de Goiás</option>
+                                                                    <option value="47" >
+                                        Tribunal de Justiça do Estado do Maranhão</option>
+                                                                    <option value="48" >
+                                        Tribunal de Justiça do Estado de Minas Gerais</option>
+                                                                    <option value="49" >
+                                        Tribunal de Justiça do Estado de Mato Grosso do Sul</option>
+                                                                    <option value="50" >
+                                        Tribunal de Justiça do Estado de Mato Grosso</option>
+                                                                    <option value="51" >
+                                        Tribunal de Justiça do Estado do Pará</option>
+                                                                    <option value="52" >
+                                        Tribunal de Justiça do Estado da Paraíba</option>
+                                                                    <option value="53" >
+                                        Tribunal de Justiça do Estado de Pernambuco</option>
+                                                                    <option value="54" >
+                                        Tribunal de Justiça do Estado do Piauí</option>
+                                                                    <option value="55" >
+                                        Tribunal de Justiça do Estado do Paraná</option>
+                                                                    <option value="56" >
+                                        Tribunal de Justiça do Estado do Rio de Janeiro</option>
+                                                                    <option value="57" >
+                                        Tribunal de Justiça do Estado do Rio Grande do Norte</option>
+                                                                    <option value="58" >
+                                        Tribunal de Justiça do Estado de Rondônia</option>
+                                                                    <option value="59" >
+                                        Tribunal de Justiça do Estado de Roraima</option>
+                                                                    <option value="60" >
+                                        Tribunal de Justiça do Estado do Rio Grande do Sul</option>
+                                                                    <option value="61" >
+                                        Tribunal de Justiça do Estado de Santa Catarina</option>
+                                                                    <option value="62" >
+                                        Tribunal de Justiça do Estado de Sergipe</option>
+                                                                    <option value="63" >
+                                        Tribunal de Justiça do Estado de São Paulo</option>
+                                                                    <option value="64" >
+                                        Tribunal de Justiça do Estado de Tocantins</option>
+                                                                    <option value="65" >
+                                        Tribunal de Justiça Militar do Estado de Minas Gerais</option>
+                                                                    <option value="66" >
+                                        Tribunal de Justiça Militar do Estado do Rio Grande do Sul</option>
+                                                                    <option value="67" >
+                                        Tribunal de Justiça Militar do Estado de São Paulo</option>
+                                                                    <option value="68" >
+                                        Tribunal Regional Eleitoral do Acre</option>
+                                                                    <option value="69" >
+                                        Tribunal Regional Eleitoral de Alagoas</option>
+                                                                    <option value="70" >
+                                        Tribunal Regional Eleitoral do Amapá</option>
+                                                                    <option value="71" >
+                                        Tribunal Regional Eleitoral do Amazonas</option>
+                                                                    <option value="72" >
+                                        Tribunal Regional Eleitoral da Bahia</option>
+                                                                    <option value="73" >
+                                        Tribunal Regional Eleitoral do Ceará</option>
+                                                                    <option value="74" >
+                                        Tribunal Regional Eleitoral do Distrito Federal</option>
+                                                                    <option value="75" >
+                                        Tribunal Regional Eleitoral do Espírito Santo</option>
+                                                                    <option value="76" >
+                                        Tribunal Regional Eleitoral de Goiás</option>
+                                                                    <option value="77" >
+                                        Tribunal Regional Eleitoral do Maranhão</option>
+                                                                    <option value="78" >
+                                        Tribunal Regional Eleitoral do Mato Grosso</option>
+                                                                    <option value="79" >
+                                        Tribunal Regional Eleitoral do Mato Grosso do Sul</option>
+                                                                    <option value="80" >
+                                        Tribunal Regional Eleitoral de Minas Gerais</option>
+                                                                    <option value="81" >
+                                        Tribunal Regional Eleitoral do Pará</option>
+                                                                    <option value="82" >
+                                        Tribunal Regional Eleitoral da Paraíba</option>
+                                                                    <option value="83" >
+                                        Tribunal Regional Eleitoral do Paraná</option>
+                                                                    <option value="84" >
+                                        Tribunal Regional Eleitoral de Pernambuco</option>
+                                                                    <option value="85" >
+                                        Tribunal Regional Eleitoral do Piauí</option>
+                                                                    <option value="86" >
+                                        Tribunal Regional Eleitoral do Rio de Janeiro</option>
+                                                                    <option value="87" >
+                                        Tribunal Regional Eleitoral do Rio Grande do Norte</option>
+                                                                    <option value="88" >
+                                        Tribunal Regional Eleitoral do Rio Grande do Sul</option>
+                                                                    <option value="89" >
+                                        Tribunal Regional Eleitoral de Roraima</option>
+                                                                    <option value="90" >
+                                        Tribunal Regional Eleitoral de Santa Catarina</option>
+                                                                    <option value="91" >
+                                        Tribunal Regional Eleitoral de São Paulo</option>
+                                                                    <option value="92" >
+                                        Tribunal Regional Eleitoral de Sergipe</option>
+                                                                    <option value="93" >
+                                        Tribunal Regional Eleitoral de Tocantins</option>
+                                                                    <option value="94" >
+                                        Tribunal Regional Eleitoral de Rondônia</option>
+                                                                    <option value="95" >
+                                        Tribunal de Justiça do Distrito Federal e dos Territórios</option>
+                                                                    <option value="96" >
+                                        Ministério Público Federal</option>
+                                                            </select>
+                            <input type='hidden' id='tipo_pesquisa' name='tipo_pesquisa' value='2'/>
+                            <span class='input-group-btn'>
+								<button type='submit' class=" btn btn-default btn-procurarsessao"><i
+                                            class='fa fa-search'></i></button>
+							</span>
+                        </div>
+
+                    </div>
+
+                </form>
+            </div>
+            <div class="col-md-10 col-md-offset-1">
+    <div class="panel panel-primary">
+        <div class="panel-body">
+            <h4 class="title-panel line">
+                <span class="" style="color: #E9B708;"></span>
+                Pesquisa por processo                <span class="badge">1</span>            </h4>
+                                        <div class="bloco-sala">
+                    <div class="panel-heading-bloco">
+                        <h3 class="panel-title-bloco" id="panel-title">
+                            <a href="/midias/web/8000822-29.2024.8.05.0216">
+                                8000822-29.2024.8.05.0216                            </a>
+                        </h3>
+                    </div>
+                                        <table class="table table-striped com-audiencia">
+                        <thead>
+                          <tr>
+                            <th style="word-wrap: break-word; width: 150px; min-width: 85px; max-width: 150px">Data</th>
+                            <th>Tipo</th>
+                            <th class="juiz">Juiz</th>
+                            <th class="priority-descricao">Descrição</th>
+                            <th style="word-wrap: break-word; width: 135px; min-width: 85px; max-width: 135px"">Status</th>
+                            <th class="text-center" style="width:60px">Mídia</th>
+                            <th class="header-acoes">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                                                      <tr id-audiencia="4ZDJmNjljOTZmM2Y1MWZkMWM4OTcxYWUwMDQ4YzRlODhNemsxT1RZME9BPT0%2C"
+    data-title=""
+    class="redirecionaMidia tooltip-midia audiencia" >
+    <td>26/04/2024 12:03:00</td>
+    <td><span class="descricao">custodia</span></td>
+    <td class="juiz"><span class="juiz">EULER JOSE RIBEIRO NETO</span></td>
+    <td class="priority-descricao"></td>
+    <td>Sucesso</td>
+    <td class="text-center">
+        <i class="fa fa-video-camera tooltip-midia" data-title="vídeo" aria-hidden="true"></i>
+    </td>
+    <td class="text-center">
+        <div class="row-acoes panel-heading-bloco">
+    
+            <button class="btn btn-xs btn-link alterarSituacao tooltip-midia"
+                data-title="Excluir Mídia"
+                aria-label="Excluir Mídia"
+                data-situacao="S"
+                data-id-audiencia="4ZDJmNjljOTZmM2Y1MWZkMWM4OTcxYWUwMDQ4YzRlODhNemsxT1RZME9BPT0%2C">
+            <i class=" fa fa-trash-o" aria-hidden="true"></i>
+        </button>
+    </div>
+    </td>
+</tr>
+                                                  </tbody>
+                    </table>
+                </div>
+                    </div>
+    </div>
+</div>
+        </div>
+    </div>
+</div>
+
+            <div id="versao">
+                v.2.5.3
+            </div>
+        </div>
+
+    <footer class="footer" id="contato">
+        <div class="container-fluid">
+            <img src="/midias/web/images/logo-cnj-preto.png" class="pull-left" />
+            <p class="small pull-right text-right">Local: SEPN Quadra 514 Norte, lote 7, Bloco B, CEP: 70760-542, Brasilia-DF. Telefone: +55(61)2326-5000<br>
+            Horário de atendimento ao público: das 12h às 19h, de segunda a sexta-feira, exceto feriado</p>
+        </div>
+    </footer>
+<script src="/midias/web/assets/c6e39f0b/jquery.js?v=1750120255"></script>
+<script src="/midias/web/assets/158c5726/yii.js?v=1750120255"></script>
+<script src="/midias/web/assets/900487c7/js/bootstrap.js?v=1750120255"></script>
+<script src="/midias/web/lib/jQuery-Mask-Plugin-master/src/jquery.mask.min.js?v=1733268764"></script>
+<script src="/midias/web/js/AppBase.js?v=1733268764"></script>
+<script src="/midias/web/lib/bootstrap-datepicker/js/bootstrap-datepicker.min.js?v=1733268764"></script>
+<script src="/midias/web/lib/bootstrap-datepicker/locales/bootstrap-datepicker.pt-BR.min.js?v=1733268764"></script>
+<script src="/midias/web/js/pesquisar.js?v=1733268764"></script>
+<script src="/midias/web/js/audiencia.index.js?v=1733268764"></script>
+<script src="/midias/web/js/favorito.index.js?v=1733268764"></script></body>
+</html>

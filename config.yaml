@@ -1,0 +1,10 @@
+pje:
+  base_url: "https://midias.pje.jus.br"
+  login_endpoint: "/midias/web/site/login"
+  audiencia_endpoint: "/midias/web/audiencia/index"
+  max_retries: 3
+  timeout: 30
+  delay_between_requests: 1.0
+  output_dir: "downloads"
+  session_dir: ".sessions"
+  session_lifetime_hours: 8
