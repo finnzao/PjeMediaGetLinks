@@ -37,3 +37,9 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+
+
+*.txt
+sessions/
+*.html
+*.pkl
