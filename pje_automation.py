@@ -413,11 +413,38 @@ class PJEAutomation:
         logger.debug("CSRF token não encontrado na página")
         return None
     
-    def _get_csrf_from_cookies(self) -> Optional[str]:
-        """Obtém token CSRF dos cookies"""
-        for cookie in self.session.cookies:
-            if cookie.name == '_csrf':
-                return cookie.value
+    def _get_csrf_token(self) -> Optional[str]:
+        """Obtém token CSRF dos cookies ou meta tags"""
+        # Método 1: Cookie
+        csrf_cookie = self.session.cookies.get('_csrf')
+        if csrf_cookie:
+            # Decodificar o cookie se necessário (formato Yii2)
+            import urllib.parse
+            import base64
+            try:
+                decoded = urllib.parse.unquote(csrf_cookie)
+                if '%3A' in decoded:
+                    # Formato serializado do Yii2
+                    parts = decoded.split('%3A')
+                    if len(parts) >= 4:
+                        # O token geralmente está na última parte
+                        token = parts[-1].replace('%22', '').replace('%7D', '')
+                        if len(token) > 10:
+                            return token
+                return decoded
+            except:
+                return csrf_cookie
+        
+        # Método 2: Buscar na página atual
+        try:
+            current_url = f"{self.config.base_url}/midias/web/audiencia/index"
+            response = self.session.get(current_url, timeout=10)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                return self._extract_csrf_token(soup)
+        except:
+            pass
+        
         return None
     
     def acessar_processo(self, numero_processo: str) -> Optional[BeautifulSoup]:
@@ -580,9 +607,7 @@ class PJEAutomation:
             logger.error(f"Erro ao acessar detalhes da audiência: {str(e)}")
             return None
 
-
-    
-    def gerar_chave_acesso(self, seq_audiencia: str) -> Optional[Dict]:
+    def gerar_chave_acesso(self, seq_audiencia: str, referrer_url: str = None) -> Optional[Dict]:
         """Gera chave de acesso externo para audiência"""
         try:
             # Verificar e renovar sessão se necessário
@@ -591,21 +616,38 @@ class PJEAutomation:
             
             logger.info(f"Gerando chave de acesso para audiência {seq_audiencia}")
             
-            # URL correta para gerar chave
-            url = f"{self.config.base_url}/midias/web/audiencia/chave-acesso-externo"
+            # URL correta baseada no fetch observado
+            url = f"{self.config.base_url}/midias/web/audiencia/gerar-chave"
             
-            # Headers específicos
+            # Obter CSRF token
+            csrf_token = self._get_csrf_token()
+            if not csrf_token:
+                logger.warning("CSRF token não encontrado, tentando sem ele")
+            
+            # Headers específicos baseados no fetch observado
             headers = {
-                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': '*/*',
+                'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'Accept': 'application/json, text/javascript, */*; q=0.01'
+                'X-Requested-With': 'XMLHttpRequest',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin',
+                'Priority': 'u=1, i'
             }
             
-            # Dados do formulário
-            data = {
-                'seq_audiencia': seq_audiencia,
-                '_csrf': self._get_csrf_from_cookies()
-            }
+            # Adicionar CSRF token se disponível
+            if csrf_token:
+                headers['X-CSRF-Token'] = csrf_token
+            
+            # Adicionar Referer se fornecido
+            if referrer_url:
+                headers['Referer'] = referrer_url
+            
+            # Dados do formulário - usar o formato exato do fetch observado
+            data = f"SEQ_AUDIENCIA={seq_audiencia}"
+            
+            logger.debug(f"Enviando POST para {url} com dados: {data}")
             
             response = self.session.post(
                 url, 
@@ -614,100 +656,210 @@ class PJEAutomation:
                 timeout=self.config.timeout
             )
             
+            logger.debug(f"Status da resposta: {response.status_code}")
+            logger.debug(f"Headers da resposta: {dict(response.headers)}")
+            logger.debug(f"Conteúdo da resposta: {response.text}")
+            
             # Verificar redirecionamento para login
             if response.status_code == 401 or '/login' in response.url:
+                logger.warning("Sessão expirada durante geração de chave, tentando renovar...")
                 if self._renovar_sessao_se_necessario():
                     response = self.session.post(url, data=data, headers=headers, timeout=self.config.timeout)
                 else:
                     return None
             
-            response.raise_for_status()
-            
-            # Processar resposta
-            if response.headers.get('content-type', '').startswith('application/json'):
-                resultado = response.json()
-                
-                if resultado.get('success'):
-                    chave = resultado.get('chave')
-                    link_externo = f"https://midias.pje.jus.br/midias/web/site/login/?chave={chave}"
+            # Verificar se a resposta foi bem-sucedida (200 ou 201)
+            if response.status_code in [200, 201]:
+                # A resposta do /gerar-chave retorna HTML da tabela atualizada
+                # Vamos extrair a chave diretamente dessa resposta
+                try:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    links = self._extrair_links_da_tabela(soup)
                     
-                    return {
-                        'id': 'novo',
-                        'chave': chave,
-                        'link': link_externo,
-                        'ativo': 'Sim',
-                        'tipo': 'externo_gerado'
-                    }
-            else:
-                logger.error(f"Resposta não é JSON: {response.text[:200]}")
+                    if links:
+                        # Pegar a primeira chave (deve ser a recém-criada)
+                        chave_info = links[0]
+                        logger.info(f"Chave gerada e extraída: {chave_info.get('chave')}")
+                        
+                        return {
+                            'id': chave_info.get('id', 'novo'),
+                            'chave': chave_info.get('chave'),
+                            'link': chave_info.get('link'),
+                            'ativo': 'Sim',
+                            'tipo': 'externo_gerado'
+                        }
+                    else:
+                        # Se não conseguiu extrair da resposta, tentar como antes
+                        logger.debug("Não foi possível extrair chave da resposta, tentando carregar via API...")
+                        
+                        # Aguardar um pouco para o sistema processar
+                        time.sleep(0.5)
+                        
+                        # Carregar a lista de chaves para obter a nova chave
+                        links_existentes = self.carregar_links_existentes(seq_audiencia, referrer_url)
+                        
+                        if links_existentes:
+                            # Pegar a chave mais recente (primeira da lista)
+                            chave_info = links_existentes[0]
+                            logger.info(f"Nova chave obtida via API: {chave_info.get('chave')}")
+                            return {
+                                'id': chave_info.get('id', 'novo'),
+                                'chave': chave_info.get('chave'),
+                                'link': chave_info.get('link'),
+                                'ativo': 'Sim',
+                                'tipo': 'externo_gerado'
+                            }
+                        else:
+                            logger.warning("Chave foi gerada mas não foi possível recuperá-la")
+                            
+                except Exception as parse_error:
+                    logger.error(f"Erro ao processar resposta HTML: {str(parse_error)}")
+                    
+                    # Fallback: tentar extrair chave usando regex
+                    # Procurar por padrões de chave na resposta
+                    chave_match = re.search(r'<td>([a-zA-Z0-9]{20})</td>', response.text)
+                    if chave_match:
+                        chave = chave_match.group(1)
+                        link_externo = f"https://midias.pje.jus.br/midias/web/site/login/?chave={chave}"
+                        
+                        logger.info(f"Chave extraída via regex: {chave}")
+                        
+                        return {
+                            'id': 'novo',
+                            'chave': chave,
+                            'link': link_externo,
+                            'ativo': 'Sim',
+                            'tipo': 'externo_gerado'
+                        }
+                    else:
+                        logger.warning("Não foi possível extrair chave da resposta")
             
+            logger.error(f"Falha ao gerar chave. Status: {response.status_code}, Resposta: {response.text}")
             return None
             
         except Exception as e:
             logger.error(f"Erro ao gerar chave de acesso: {str(e)}")
             return None
     
+    def carregar_links_existentes(self, seq_audiencia: str, referrer_url: str = None) -> List[Dict]:
+        """Carrega links de acesso externo existentes"""
+        try:
+            # URL baseada no segundo fetch observado
+            url = f"{self.config.base_url}/midias/web/permissao-audiencia/externo"
+            params = {'id_audiencia': seq_audiencia}
+            
+            # Headers específicos
+            headers = {
+                'Accept': '*/*',
+                'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin',
+                'Priority': 'u=1, i'
+            }
+            
+            # Adicionar CSRF token se disponível
+            csrf_token = self._get_csrf_token()
+            if csrf_token:
+                headers['X-CSRF-Token'] = csrf_token
+            
+            # Adicionar Referer se fornecido
+            if referrer_url:
+                headers['Referer'] = referrer_url
+            
+            logger.debug(f"Carregando links existentes para audiência {seq_audiencia}")
+            
+            response = self.session.get(url, params=params, headers=headers, timeout=self.config.timeout)
+            
+            logger.debug(f"Status resposta carregar links: {response.status_code}")
+            logger.debug(f"Conteúdo resposta carregar links: {response.text[:500]}")
+            
+            if response.status_code == 200:
+                # Processar resposta HTML
+                soup = BeautifulSoup(response.text, 'html.parser')
+                return self._extrair_links_da_tabela(soup)
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Erro ao carregar links existentes: {str(e)}")
+            return []
+    
+    def _extrair_links_da_tabela(self, soup: BeautifulSoup) -> List[Dict]:
+        """Extrai links da tabela HTML"""
+        links = []
+        try:
+            # Procurar pela tabela dentro da div acesso-externo
+            tabela = soup.find('table', class_='table')
+            
+            if not tabela:
+                logger.debug("Tabela não encontrada")
+                return links
+            
+            tbody = tabela.find('tbody')
+            if not tbody:
+                logger.debug("Tbody não encontrado - tabela pode estar vazia")
+                return links
+            
+            # Processar cada linha da tabela
+            for tr in tbody.find_all('tr'):
+                try:
+                    # Extrair dados das colunas: #, Chave, Link, Ativo, Ação
+                    cols = tr.find_all(['th', 'td'])
+                    
+                    if len(cols) >= 4:
+                        # Coluna 0: # (número)
+                        numero = cols[0].text.strip()
+                        
+                        # Coluna 1: Chave
+                        chave = cols[1].text.strip()
+                        
+                        # Coluna 2: Link (contém o botão com onclick)
+                        link_col = cols[2]
+                        
+                        # Coluna 3: Ativo
+                        ativo = cols[3].text.strip()
+                        
+                        if chave and ativo.lower() == 'sim':
+                            # Construir link completo
+                            link_externo = f"https://midias.pje.jus.br/midias/web/site/login/?chave={chave}"
+                            
+                            link_info = {
+                                'id': numero,
+                                'chave': chave,
+                                'link': link_externo,
+                                'ativo': ativo,
+                                'tipo': 'externo'
+                            }
+                            
+                            links.append(link_info)
+                            logger.debug(f"Link extraído: ID={numero}, Chave={chave}")
+                
+                except Exception as e:
+                    logger.error(f"Erro ao processar linha da tabela: {str(e)}")
+                    continue
+            
+            logger.info(f"Extraídos {len(links)} links da tabela")
+            return links
+            
+        except Exception as e:
+            logger.error(f"Erro ao extrair links da tabela: {str(e)}")
+            return links
+    
     def extrair_links_midia(self, soup: BeautifulSoup, numero_processo: str) -> List[Dict]:
         """Extrai links de mídia da página"""
         links = []
         
         try:
-            # Procurar tabela de acesso externo
+            # Primeiro, procurar por links existentes na tabela
             tabelas = soup.find_all('table', class_='table')
             
             for tabela in tabelas:
-                # Verificar se é a tabela de acesso externo
                 thead = tabela.find('thead')
                 if thead and 'Chave' in thead.text and 'Link' in thead.text:
                     logger.debug("Tabela de acesso externo encontrada")
-                    
-                    tbody = tabela.find('tbody')
-                    if tbody:
-                        for tr in tbody.find_all('tr'):
-                            cols = tr.find_all('td')
-                            if len(cols) >= 4:
-                                # Extrair dados da linha
-                                chave = cols[0].text.strip()
-                                
-                                # Verificar se está ativo
-                                ativo = cols[2].text.strip()
-                                
-                                if ativo.lower() == 'sim':
-                                    # Construir URL do link
-                                    link_externo = f"https://midias.pje.jus.br/midias/web/site/login/?chave={chave}"
-                                    
-                                    link_info = {
-                                        'id': tr.find('th').text.strip() if tr.find('th') else '',
-                                        'chave': chave,
-                                        'link': link_externo,
-                                        'ativo': ativo,
-                                        'tipo': 'externo'
-                                    }
-                                    
-                                    links.append(link_info)
-                                    logger.info(f"Link externo encontrado: chave={chave}")
-            
-            # Extrair link direto do vídeo (se disponível)
-            player_div = soup.find('div', id='player-wrapper')
-            if player_div and player_div.get('data-src'):
-                video_url = player_div['data-src']
-                links.append({
-                    'id': 'video_direto',
-                    'chave': 'N/A',
-                    'link': video_url,
-                    'ativo': 'Sim',
-                    'tipo': 'video_direto'
-                })
-                logger.info("Link direto do vídeo encontrado")
-            
-            # Procurar descrição
-            desc_div = soup.find('div', class_='col-md-12 text-justify')
-            if desc_div:
-                descricao_parts = desc_div.text.split('Descrição:')
-                if len(descricao_parts) > 1:
-                    descricao = descricao_parts[1].strip()
-                    for link in links:
-                        link['descricao'] = descricao
+                    links.extend(self._extrair_links_da_tabela(soup))
             
             # Extrair informações adicionais da audiência
             info_divs = soup.find_all('div', class_='col-md-6')
@@ -719,7 +871,112 @@ class PJEAutomation:
                     chave, valor = texto.split(':', 1)
                     info_adicional[chave.strip()] = valor.strip()
             
-            # Adicionar informações aos links
+            # Procurar por botão "Gerar chave" com diferentes seletores
+            btn_gerar = None
+            seq_audiencia = None
+            
+            # Método 1: ID exato
+            btn_gerar = soup.find('button', id='btn-acesso-externo')
+            
+            # Método 2: Classe
+            if not btn_gerar:
+                btn_gerar = soup.find('button', class_='btn-acesso-externo')
+            
+            # Método 3: Texto do botão
+            if not btn_gerar:
+                btn_gerar = soup.find('button', string=re.compile(r'Gerar\s+chave', re.I))
+            
+            # Método 4: Procurar em qualquer elemento que contenha "Gerar chave"
+            if not btn_gerar:
+                elementos = soup.find_all(string=re.compile(r'Gerar\s+chave', re.I))
+                for elemento in elementos:
+                    parent = elemento.parent
+                    if parent and parent.name == 'button':
+                        btn_gerar = parent
+                        break
+                    # Verificar se é dentro de um botão
+                    btn_ancestor = parent.find_parent('button') if parent else None
+                    if btn_ancestor:
+                        btn_gerar = btn_ancestor
+                        break
+            
+            # Método 5: Procurar qualquer botão que contenha "chave" no onclick ou atributos
+            if not btn_gerar:
+                botoes = soup.find_all('button')
+                for botao in botoes:
+                    onclick = botao.get('onclick', '')
+                    if 'chave' in onclick.lower() or 'gerar' in onclick.lower():
+                        btn_gerar = botao
+                        break
+            
+            if btn_gerar:
+                # Tentar extrair seq-audiencia de diferentes formas
+                seq_audiencia = btn_gerar.get('seq-audiencia')
+                
+                if not seq_audiencia:
+                    # Tentar outros atributos
+                    seq_audiencia = btn_gerar.get('data-seq-audiencia') or \
+                                  btn_gerar.get('data-audiencia') or \
+                                  btn_gerar.get('audiencia-id')
+                
+                if not seq_audiencia:
+                    # Procurar no onclick
+                    onclick = btn_gerar.get('onclick', '')
+                    seq_match = re.search(r'(\d+)', onclick)
+                    if seq_match:
+                        seq_audiencia = seq_match.group(1)
+                
+                if not seq_audiencia:
+                    # Procurar em elementos próximos
+                    parent = btn_gerar.parent
+                    if parent:
+                        # Procurar inputs hidden próximos
+                        hidden_inputs = parent.find_all('input', type='hidden')
+                        for inp in hidden_inputs:
+                            if 'audiencia' in inp.get('name', '').lower():
+                                seq_audiencia = inp.get('value')
+                                break
+                
+                logger.debug(f"Botão gerar chave encontrado com seq-audiencia: {seq_audiencia}")
+            else:
+                logger.debug("Botão 'Gerar chave' não encontrado")
+                
+                # Debug: mostrar todo o HTML da área de acesso externo
+                acesso_div = soup.find('div', class_='acesso-externo')
+                if acesso_div:
+                    logger.debug(f"Conteúdo da div acesso-externo: {acesso_div.get_text()[:200]}")
+                
+                # Procurar qualquer referência a seq-audiencia no HTML
+                html_str = str(soup)
+                seq_matches = re.findall(r'seq-audiencia["\']?\s*[:=]\s*["\']?(\d+)', html_str, re.I)
+                if seq_matches:
+                    seq_audiencia = seq_matches[0]
+                    logger.debug(f"seq-audiencia encontrado via regex: {seq_audiencia}")
+            
+            # Se não houver links ativos e temos seq_audiencia, tentar gerar
+            if not links and seq_audiencia:
+                logger.info(f"Nenhum link ativo encontrado. Tentando gerar chave para audiência {seq_audiencia}")
+                
+                # Construir URL de referência para o Referer
+                referrer_url = f"{self.config.base_url}/midias/web/{numero_processo}"
+                
+                # Primeiro, tentar carregar links existentes
+                links_existentes = self.carregar_links_existentes(seq_audiencia, referrer_url)
+                if links_existentes:
+                    logger.info(f"Encontrados {len(links_existentes)} links existentes")
+                    links.extend(links_existentes)
+                else:
+                    # Se não há links existentes, gerar novo
+                    chave_info = self.gerar_chave_acesso(seq_audiencia, referrer_url)
+                    if chave_info:
+                        links.append(chave_info)
+                        logger.info("Nova chave gerada com sucesso")
+                    else:
+                        logger.warning("Falha ao gerar nova chave")
+            elif not seq_audiencia:
+                logger.warning("seq-audiencia não encontrado, não é possível gerar chave")
+            
+            # Adicionar informações extras aos links
             for link in links:
                 link.update({
                     'sincronizado_por': info_adicional.get('Sicronizado por', ''),
@@ -731,18 +988,19 @@ class PJEAutomation:
                     'unidade': info_adicional.get('Unidade judiciária', '')
                 })
             
-            # Se não houver links ativos, verificar se precisa gerar chave
-            if not links:
-                btn_gerar = soup.find('button', id='btn-acesso-externo')
-                if btn_gerar:
-                    seq_audiencia = btn_gerar.get('seq-audiencia')
-                    if seq_audiencia:
-                        logger.info(f"Nenhum link ativo encontrado. Gerando chave para audiência {seq_audiencia}")
-                        chave_info = self.gerar_chave_acesso(seq_audiencia)
-                        if chave_info:
-                            links.append(chave_info)
-                else:
-                    logger.warning("Botão de gerar chave não encontrado")
+            # Extrair link direto do vídeo (se disponível)
+            player_div = soup.find('div', id='player-wrapper')
+            if player_div and player_div.get('data-src'):
+                video_url = player_div['data-src']
+                links.append({
+                    'id': 'video_direto',
+                    'chave': 'N/A',
+                    'link': video_url,
+                    'ativo': 'Sim',
+                    'tipo': 'video_direto',
+                    **info_adicional
+                })
+                logger.info("Link direto do vídeo encontrado")
             
             logger.info(f"Extraídos {len(links)} links para processo {numero_processo}")
             return links
@@ -789,12 +1047,14 @@ class PJEAutomation:
                             # Pegar informações da primeira audiência
                             if audiencias:
                                 audiencia = audiencias[0]
-                                link.update({
-                                    'data_audiencia': link.get('data_audiencia') or audiencia.get('data'),
-                                    'tipo_audiencia': link.get('tipo_audiencia') or audiencia.get('tipo'),
-                                    'juiz': link.get('juiz') or audiencia.get('juiz'),
-                                    'status': audiencia.get('status')
-                                })
+                                # Preservar informações já extraídas, mas adicionar da audiência se não existirem
+                                if not link.get('data_audiencia'):
+                                    link['data_audiencia'] = audiencia.get('data')
+                                if not link.get('tipo_audiencia'):
+                                    link['tipo_audiencia'] = audiencia.get('tipo')
+                                if not link.get('juiz'):
+                                    link['juiz'] = audiencia.get('juiz')
+                                link['status'] = audiencia.get('status')
 
                         processo_info.links_midia.extend(links)
                     else:
@@ -812,7 +1072,6 @@ class PJEAutomation:
                 continue
             
         return resultados
-
 
     def salvar_resultados(self, formato: str = 'json') -> str:
         """Salva resultados em arquivo"""
